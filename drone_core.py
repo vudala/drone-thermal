@@ -2,6 +2,7 @@
 import time
 from functools import partial
 from typing import Callable
+import subprocess
 
 # 3rd party
 import asyncio
@@ -60,13 +61,6 @@ class DroneCore(System):
         self.airspeed_ms = None
         self.throttle_pct = None
         self.climb_rate_ms = None
-
-        self.odometry = None
-        self.roll_rads = None
-        self.pitch_rads = None
-        self.yaw_rads = None
-
-        self.battery_pct = None
         
 
     async def stabilize(self):
@@ -96,7 +90,7 @@ class DroneCore(System):
         Parameters
         ----------
         - topic: str
-            - Name of the ROS2 topic you want tocreate_publisher
+            - Name of the ROS2 topic you want to create
         - data_type: any
             - Data type of the topic
         """
@@ -211,27 +205,8 @@ class DroneCore(System):
             await asyncio.sleep(delay)
 
 
-    async def odometry_refresher(self, delay):
-        """
-        Keeps updating the odometry data of the drone
 
-        Parameters
-        ----------
-        - delay: float
-            - Delay in seconds between iterations
-        """
-        await self.telemetry.set_rate_odometry(20)
-        async for od in self.telemetry.odometry():
-            self.odometry = od
-            self.roll_rads = od.angular_velocity_body.roll_rad_s
-            self.pitch_rads = od.angular_velocity_body.pitch_rad_s
-            self.yaw_rads = od.angular_velocity_body.yaw_rad_s
-            await asyncio.sleep(delay)
-
-
-    async def apply_thermal_force(self, force):
-        import subprocess
-
+    def apply_thermal_force(self, force: float):
         command = """
         gz topic -t /world/default/wrench/persistent -m gz.msgs.EntityWrench -p\
         'entity: {
@@ -245,4 +220,16 @@ class DroneCore(System):
         }'
         """.format(self.name, force)
 
-        subprocess.run(command[0], shell = True, executable="/bin/bash")
+        subprocess.run(command, shell = True, executable="/bin/bash")
+
+
+    def clear_thermal_force(self):
+        command = """
+        gz topic -t /world/default/wrench/clear -m gz.msgs.EntityWrench -p\
+        'entity: {
+            type: 2,
+            name: "{}"
+        }
+        """.format(self.name)
+
+        subprocess.run(command, shell = True, executable="/bin/bash")

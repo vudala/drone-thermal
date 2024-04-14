@@ -32,51 +32,19 @@ def read_config(logger: Logger, path: str):
         - Path to config file
     """
     if os.path.exists(path):
-        logger.info('Reading drones from {}'.format(path))
+        logger.info('Reading drones config from {}'.format(path))
         f = open(path)
         return json.load(f)
     else:
         at_root_path = os.path.join(root_path(), 'config.json')
         if os.path.exists(at_root_path):
-            logger.info('Reading drones from {}'.format(at_root_path))
+            logger.info('Reading drones config from {}'.format(at_root_path))
             f = open(at_root_path)
             return json.load(f)
     return None
 
 
-def process_mpath(log: Logger, name: str, m_path: str, cfg_path: str):
-    """
-    Normalizes the mission path, converting relative paths to their absolute
-    values
-
-    Parameters
-    ----------
-    - log: Logger
-        - Which logger to use
-    - name: str
-        - Name of the drone
-    - m_path: str
-        - Path of the mission
-    - cfg_path: str
-        - Path for configuration file
-    """
-    result = m_path
-    
-    if m_path == None:
-        log.info(f'No mission for {str(name)}')
-    else:
-        isabs = os.path.isabs(m_path)
-        if not isabs:
-            result = os.path.join(os.path.dirname(cfg_path), m_path)
-
-    if result != None and not os.path.exists(result):
-        log.error(f'{str(name)}: {result} does not exist')
-        quit()
-        
-    return result    
-
-
-def main(conf_path: str, airsim_g: bool):
+def main(conf_path: str):
     """
     Creates multiple drones and syncs them
 
@@ -104,8 +72,6 @@ def main(conf_path: str, airsim_g: bool):
     
     inst = 0
     for d_name in drones_config:
-        m_path = drones_config[d_name].get('mission_path', None)
-        m_path = process_mpath(log, d_name, m_path, conf_path)
 
         p = Process(
             target=drone.execute,
@@ -114,8 +80,7 @@ def main(conf_path: str, airsim_g: bool):
                 inst,
                 total_drones,
                 barrier,
-                log_path,
-                m_path
+                log_path
             ],
             name='maestro_drone_' + str(inst)
         )
@@ -156,15 +121,9 @@ def get_args():
         help='path for .json config file, check README.md'
     )
 
-    parser.add_argument(
-        '-a', '--airsim-external', dest='airsim_e',
-        action='store_true',
-        help='enable external graphic engine update for AirSim'
-    )
-
     return parser.parse_args()
 
 
 if __name__ == '__main__':
     args = get_args()
-    main(args.conf_path, args.airsim_e)
+    main(args.conf_path)

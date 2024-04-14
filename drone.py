@@ -19,13 +19,7 @@ PX4_SITL_DEFAULT_PORT = 14540
 # delay in seconds
 POSITION_REFRESH_DELAY = 0.1
 VELOCITY_REFRESH_DELAY = 0.1
-GND_SPEED_REFRESH_DELAY = 0.1
-THRT_CRATE_REFRESH_DELAY = 0.1
-ODOMETRY_REFRESH_DELAY = 0.1
-BATTERY_REFRESH_DELAY = 0.1
 
-DISTANCE_THRESHOLD_CM = 200
-CRITICAL_BATTERY = 0.97
 
 drones = []
 
@@ -106,29 +100,6 @@ async def refresher(drone: DroneCore):
     await group
 
 
-async def safechecker(drone: DroneCore, total: int):
-    """
-    Checks if its too clone to any other drone
-    
-    Paramenters
-    -----------
-    - drone: DroneCore
-        - The drone that will be checkingbattery capacity mah
-    """
-    while True:
-        for i in range(total):
-            # checks if its not itself and if the i drone has already published
-            # its position
-            if i != drone.instance and 'position' in drones[i]:
-                dist = utils.distance_cm(drone.position, drones[i]['position'])
-                if dist <= float(DISTANCE_THRESHOLD_CM):
-                    # stall and wait
-                    drone.logger.warning('DRONE TOO CLOSE')
-                    await drone.mission.pause_mission()
-                    await drone.action.hold()
-        await asyncio.sleep(0.05)
-
-
 async def proceed():
     """
     Await for some logic allowing the drone to proceed with its flight
@@ -163,8 +134,6 @@ async def start_coroutines(
 
     if mission_path != None:
         coros.append(mission.run_mission(drone, mission_path)) 
-
-    coros.append(safechecker(drone, total))
 
     # create tasks for all coroutines
     group = asyncio.gather(*coros)
@@ -211,7 +180,7 @@ async def execute_core(
 def execute(
         name: str, inst: int, total: int,
         barrier: Barrier,
-        logger_path: str, mission_path: str):
+        logger_path: str):
     """
     Executes all the tasks of a drone
 
@@ -228,8 +197,6 @@ def execute(
         number the same as the total param
     - logger_path: str
         - Root dir of the logger system
-    - mission_path: str
-        - Path to .plan missions file
     """
     rclpy.init()
     asyncio.run(
@@ -238,8 +205,7 @@ def execute(
             inst,
             total,
             barrier,
-            logger_path,
-            mission_path
+            logger_path
         )
     )
     rclpy.shutdown()

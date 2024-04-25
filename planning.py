@@ -19,7 +19,7 @@ def ned_from_global(x_local, y_local, projection):
 def global_from_ned(latitude, longitude, projection):
     # Create a transformer object (switched order for reverse conversion)
     transformer = Transformer.from_crs(wgs84, projection)
-    x_local, y_local = transformer.transform(longitude, latitude)
+    return transformer.transform(longitude, latitude)
 
 
 async def run():

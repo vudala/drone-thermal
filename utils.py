@@ -47,7 +47,7 @@ def bytearray_to_obj(arr: list):
 
 def latlonhei_to_xyz(lat_rad: float, lon_rad: float, hei_cm: float):
     """
-    Convert latitude, longitude and height to XYZ coordinates
+    Convert latitude, longitude and height to XYZ coordinates in centimeters
 
     Parameters
     ----------
@@ -62,8 +62,8 @@ def latlonhei_to_xyz(lat_rad: float, lon_rad: float, hei_cm: float):
     ------
     - (x, y, z): (float, float, float) 
     """
-    EARTH_RADIUS_CENTIMENTERS = 637100000.0
-    R = EARTH_RADIUS_CENTIMENTERS
+    EARTH_RADIUS_CENTIMETERS = 637100000.0
+    R = EARTH_RADIUS_CENTIMETERS
 
     x = (R + hei_cm) * math.cos(lat_rad) * math.cos(lon_rad)
     y = (R + hei_cm) * math.cos(lat_rad) * math.sin(lon_rad)

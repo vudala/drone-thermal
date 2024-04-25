@@ -147,7 +147,6 @@ class DroneCore(System):
         - delay: float
             - Delay in seconds between iterations
         """
-        await self.telemetry.set_rate_position(20)
         async for pos in self.telemetry.position():
             self.position = pos
             self.relative_alt_m = pos.relative_altitude_m
@@ -164,7 +163,6 @@ class DroneCore(System):
         - delay: float
             - Delay in seconds between iterations
         """
-       # await self.telemetry.set_rate_velocity_ned(2)
         async for v in self.telemetry.velocity_ned():
             self.velocity_ned = v
             await asyncio.sleep(delay)
@@ -196,7 +194,6 @@ class DroneCore(System):
         - delay: float
             - Delay in seconds between iterations
         """
-        await self.telemetry.set_rate_fixedwing_metrics(20)
         async for met in self.telemetry.fixedwing_metrics():
             self.fixedw = met
             self.airspeed_ms = met.airspeed_m_s

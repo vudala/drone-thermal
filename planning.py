@@ -4,23 +4,40 @@ import asyncio
 
 from mavsdk import System
 from mavsdk.mission import (MissionItem, MissionPlan)
-from mavsdk.telemetry import Position, VelocityNed, Heading
-
+from mavsdk.telemetry import Position
 from pyproj import CRS, Transformer
+
+import utils
 
 # Define the WGS84 geographic coordinate system (latitude, longitude)
 wgs84 = CRS.from_epsg(4326)  # EPSG code for WGS84
-def ned_from_global(x_local, y_local, projection):
+def ned_to_global(x_local, y_local, projection):
     # Create a transformer object
     transformer = Transformer.from_crs(projection, wgs84)
     return transformer.transform(x_local, y_local)
 
 
-def global_from_ned(latitude, longitude, projection):
+def global_to_ned(latitude, longitude, projection):
     # Create a transformer object (switched order for reverse conversion)
     transformer = Transformer.from_crs(wgs84, projection)
     return transformer.transform(longitude, latitude)
 
+
+thermals = [
+    {"x": 25, "y": 50}
+]
+
+async def monitor_pos(drone: System, projection):
+    async for p in drone.telemetry.position():
+        for t in thermals:
+            t_lat, t_lon = ned_to_global(t["x"], t["y"], projection)
+            t_pos = Position(t_lat, t_lon, p.absolute_altitude_m, p.relative_altitude_m)
+
+            dist = utils.distance_cm(p, t_pos)
+
+            if dist < 300:
+                print("In thermal range")
+        
 
 async def run():
     drone = System()
@@ -31,13 +48,6 @@ async def run():
         if state.is_connected:
             print(f"-- Connected to drone!")
             break
-
-    print_mission_progress_task = asyncio.ensure_future(
-        print_mission_progress(drone))
-
-    running_tasks = [print_mission_progress_task]
-    termination_task = asyncio.ensure_future(
-        observe_is_in_air(drone, running_tasks))
 
     mission_items = []
 
@@ -54,15 +64,15 @@ async def run():
     )
 
     points = [
-        {"x": 50, "y": 50, "z": 30},
-        {"x": 100, "y": 50, "z": 30},
-        {"x": 100, "y": 100, "z": 30},
-        {"x": 50, "y": 100, "z": 30},
-        {"x": 50, "y": 50, "z": 30},
+        {"x":  0, "y": 0, "z": 10},
+        {"x": 50, "y": 0, "z": 10},
+        {"x": 50, "y": 50, "z": 10},
+        {"x": 0, "y": 50, "z": 10},
+        {"x": 0, "y": 0, "z": 10},
     ]
 
     for waypoint in points:
-        lat, lon = ned_from_global(waypoint["x"], waypoint["y"], projection)
+        lat, lon = ned_to_global(waypoint["x"], waypoint["y"], projection)
         print("{} {}".format(lat, lon))
         mission_item = MissionItem(lat, lon, waypoint["z"],
                                     10,
@@ -97,38 +107,7 @@ async def run():
     print("-- Starting mission")
     await drone.mission.start_mission()
 
-
-
-    await termination_task
-
-
-async def print_mission_progress(drone):
-    async for mission_progress in drone.mission.mission_progress():
-        print(f"Mission progress: "
-              f"{mission_progress.current}/"
-              f"{mission_progress.total}")
-
-
-async def observe_is_in_air(drone, running_tasks):
-    """ Monitors whether the drone is flying or not and
-    returns after landing """
-
-    was_in_air = False
-
-    async for is_in_air in drone.telemetry.in_air():
-        if is_in_air:
-            was_in_air = is_in_air
-
-        if was_in_air and not is_in_air:
-            for task in running_tasks:
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
-            await asyncio.get_event_loop().shutdown_asyncgens()
-
-            return
+    await monitor_pos(drone, projection)
 
 
 if __name__ == "__main__":

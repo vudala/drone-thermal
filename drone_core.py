@@ -61,7 +61,7 @@ class DroneCore(System):
         self.airspeed_ms = None
         self.throttle_pct = None
         self.climb_rate_ms = None
-        
+
 
     async def stabilize(self):
         """
@@ -80,7 +80,7 @@ class DroneCore(System):
             if health.is_global_position_ok and health.is_home_position_ok:
                 self.logger.info("-- Global position estimate OK")
                 break
-        
+
 
     def create_publisher(self, topic: str, data_type: any):
         """
@@ -137,7 +137,7 @@ class DroneCore(System):
         )
         self.subscribed.add(sub)
 
-        
+
     async def position_refresher(self, delay):
         """
         Keeps updating and publishing the drone position
@@ -200,7 +200,6 @@ class DroneCore(System):
             self.throttle_pct = met.throttle_percentage
             self.climb_rate_ms = met.climb_rate_m_s
             await asyncio.sleep(delay)
-
 
 
     def apply_thermal_force(self, force: float):

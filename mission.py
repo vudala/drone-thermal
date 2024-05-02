@@ -11,6 +11,19 @@ from pyproj import CRS, Transformer
 
 import utils
 
+ACCEPTANCE_RADIUS_CM = 100
+
+thermals = [
+    {"x": 25, "y": 50}
+]
+
+points = [
+    {"x":  0, "y": 0, "z": 10},
+    {"x": 50, "y": 0, "z": 10},
+    {"x": 50, "y": 50, "z": 10},
+    {"x": 0, "y": 50, "z": 10},
+    {"x": 0, "y": 0, "z": 10},
+]
 
 class Thermal():
     def __init__(self, x, y, projection, force, radius):
@@ -47,30 +60,22 @@ def global_to_xy(latitude, longitude, projection):
     return transformer.transform(longitude, latitude)
 
 
-thermals = [
-    {"x": 25, "y": 50}
-]
-
-
-
 def worth_it(drone: DroneCore, thermal: Thermal):
     return False
 
 
-"""
-Assume that the drone is navigating through a mission and following a given
-waypoint. This coroutine exits to determine if its worth it to stop the
-mission, activate offboard and go torwards a thermal in order to gain lift.
-"""
-async def scan_for_thermal(drone: DroneCore, thermals: list):
-    for t in thermals:
-        if worth_it(drone, t):
-            await drone.mission.pause_mission()
-        pass
+async def reach_position(drone: DroneCore, target: Position):
+    """
+    It hold the execution until the drones has gotten close enough to the
+    desired position
+    """
+    await drone.offboard.set_position_global(target)
+
+    while utils.distance_cm(drone.position, target) < ACCEPTANCE_RADIUS_CM:
+        await asyncio.sleep(0.1)
 
 
 async def follow_thermal(drone: DroneCore, thermal: Thermal):
-    await drone.mission.pause_mission()
     print("-- Starting offboard")
     try:
         await drone.offboard.start()
@@ -81,11 +86,27 @@ async def follow_thermal(drone: DroneCore, thermal: Thermal):
         await drone.action.return_to_launch()
         return
     
-    await drone.offboard.set_position_global(
-        thermal.global_position
-    )
+    target = PositionGlobalYaw(thermal.global_position)
+    target.alt_m = drone.position.relative_altitude_m
+    target.altitude_type = PositionGlobalYaw.AltitudeType.REL_HOME
 
     # check if has got close enough to the thermal position
+    await reach_position(drone, target)
+
+
+async def ride_thermal(drone: DroneCore, thermal: Thermal, height: float):
+    drone.apply_thermal_force(thermal.force)
+    
+    # thermal xy, next waypoint z
+    target = PositionGlobalYaw(thermal.global_position)
+    target.alt_m = height
+    target.altitude_type = PositionGlobalYaw.AltitudeType.REL_HOME
+    await reach_position(drone, target)
+
+    drone.clear_thermal_force()
+
+    # resume mission
+    await drone.mission.start_mission()
 
 
 async def in_thermal(drone: DroneCore, thermal: Thermal, projection):
@@ -101,11 +122,30 @@ async def in_thermal(drone: DroneCore, thermal: Thermal, projection):
         # if in range of radius of thermal
         if dist < thermal.radius:
             # start loitering
+            await drone.offboard.set_position_global(
+                
+            )
             # activate thermal lift
             # wait until it reaches desired altitude
             # resume mission
             pass
-        
+
+
+"""
+Assume that the drone is navigating through a mission and following a given
+waypoint. This coroutine exits to determine if its worth it to stop the
+mission, activate offboard and go torwards a thermal in order to gain lift.
+"""
+async def scan_for_thermal(drone: DroneCore, thermals: list):
+    while True:
+        for t in thermals:
+            if worth_it(drone, t):
+                await drone.mission.pause_mission()
+
+                await follow_thermal(drone, t)
+
+                await ride_thermal(drone, t, )
+
 
 async def run(drone: DroneCore):
 
@@ -113,10 +153,8 @@ async def run(drone: DroneCore):
 
     mission_items = []
 
-    async for p in drone.telemetry.position():
-        pos = p
-        break
-    
+    pos = await drone.get_position()
+
     # Initial GPS coordinates and altitude
     origin_lat, origin_lon, origin_alt = pos.latitude_deg, pos.longitude_deg, pos.absolute_altitude_m
 
@@ -125,18 +163,9 @@ async def run(drone: DroneCore):
         f"+proj=aeqd +lon_0={origin_lon} +lat_0={origin_lat}"
     )
 
-
-    points = [
-        {"x":  0, "y": 0, "z": 10},
-        {"x": 50, "y": 0, "z": 10},
-        {"x": 50, "y": 50, "z": 10},
-        {"x": 0, "y": 50, "z": 10},
-        {"x": 0, "y": 0, "z": 10},
-    ]
-
     for waypoint in points:
         lat, lon = xy_to_global(waypoint["x"], waypoint["y"], projection)
-        print("{} {}".format(lat, lon))
+
         mission_item = MissionItem(lat, lon, waypoint["z"],
                                     10,
                                     True,
@@ -169,3 +198,5 @@ async def run(drone: DroneCore):
 
     print("-- Starting mission")
     await drone.mission.start_mission()
+
+    await scan_for_thermal(drone, thermals)

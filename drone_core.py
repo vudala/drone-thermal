@@ -154,6 +154,12 @@ class DroneCore(System):
             await asyncio.sleep(delay)
 
 
+    async def get_position(self):
+        while self.position == None:
+            await asyncio.sleep(0.1)
+        return self.position
+
+
     async def velocity_refresher(self, delay):
         """
         Keeps updating and publishing the drones NED velocity

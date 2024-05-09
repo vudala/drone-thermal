@@ -60,7 +60,15 @@ def global_to_xy(latitude, longitude, projection):
     return transformer.transform(longitude, latitude)
 
 
-def worth_it(drone: DroneCore, thermal: Thermal):
+async def worth_it(drone: DroneCore, next_waypoint: Position, thermal: Thermal):
+    drone_pos = await drone.get_position()
+
+    thermal_pos = Position(thermal)
+    thermal_pos.absolute_altitude_m = drone_pos.absolute_altitude_m
+    if next_waypoint.absolute_altitude_m - drone_pos.absolute_altitude_m > 20:
+        if utils.distance_cm(drone_pos, thermal_pos) / 100 < 30:
+            return True
+    
     return False
 
 
@@ -105,30 +113,27 @@ async def ride_thermal(drone: DroneCore, thermal: Thermal, height: float):
 
     drone.clear_thermal_force()
 
-    # resume mission
-    await drone.mission.start_mission()
 
+# async def in_thermal(drone: DroneCore, thermal: Thermal, projection):
+#     async for p in drone.telemetry.position():
+#         t_lat, t_lon = xy_to_global(thermal.x, thermal.y, projection)
+#         t_pos = Position(
+#             t_lat, t_lon,
+#             p.absolute_altitude_m, p.relative_altitude_m
+#         )
 
-async def in_thermal(drone: DroneCore, thermal: Thermal, projection):
-    async for p in drone.telemetry.position():
-        t_lat, t_lon = xy_to_global(thermal.x, thermal.y, projection)
-        t_pos = Position(
-            t_lat, t_lon,
-            p.absolute_altitude_m, p.relative_altitude_m
-        )
+#         dist = utils.distance_cm(p, t_pos)
 
-        dist = utils.distance_cm(p, t_pos)
-
-        # if in range of radius of thermal
-        if dist < thermal.radius:
-            # start loitering
-            await drone.offboard.set_position_global(
+#         # if in range of radius of thermal
+#         if dist < thermal.radius:
+#             # start loitering
+#             await drone.offboard.set_position_global(
                 
-            )
-            # activate thermal lift
-            # wait until it reaches desired altitude
-            # resume mission
-            pass
+#             )
+#             # activate thermal lift
+#             # wait until it reaches desired altitude
+#             # resume mission
+#             pass
 
 
 """
@@ -145,6 +150,8 @@ async def scan_for_thermal(drone: DroneCore, thermals: list):
                 await follow_thermal(drone, t)
 
                 await ride_thermal(drone, t, )
+
+                await drone.mission.start_mission()
 
 
 async def run(drone: DroneCore):

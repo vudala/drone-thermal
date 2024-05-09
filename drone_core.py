@@ -57,7 +57,7 @@ class DroneCore(System):
         self.velocity_ned = None
         self.ground_speed_ms = None
 
-        self.fixedw = None
+        self.fixedwing_metrics = None
         self.airspeed_ms = None
         self.throttle_pct = None
         self.climb_rate_ms = None
@@ -156,7 +156,7 @@ class DroneCore(System):
 
     async def get_position(self):
         while self.position == None:
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.01)
         return self.position
 
 
@@ -174,6 +174,12 @@ class DroneCore(System):
             await asyncio.sleep(delay)
 
 
+    async def get_velocity_ned(self):
+        while self.velocity_ned == None:
+            await asyncio.sleep(0.01)
+        return self.velocity_ned
+
+
     async def gnd_speed_refresher(self, delay):
         """
         Keeps updating drones ground speed
@@ -185,15 +191,19 @@ class DroneCore(System):
         """
         while True:
             await asyncio.sleep(delay)
-            vel = self.velocity_ned
-            if vel == None:
-                continue
+            vel = await self.get_velocity_ned()
             self.ground_speed_ms = utils.ground_speed_ms(vel)
 
 
-    async def thrt_crate_refresher(self, delay):
+    async def get_ground_speed_ms(self):
+        while self.ground_speed_ms == None:
+            await asyncio.sleep(0.01)
+        return self.ground_speed_ms
+
+
+    async def get_fixedwing_metrics_refresher(self, delay):
         """
-        Keeps updating drones throttle and climb rate
+        Keeps updating drones airspeed, throttle and climb rate
 
         Parameters
         ----------
@@ -206,6 +216,12 @@ class DroneCore(System):
             self.throttle_pct = met.throttle_percentage
             self.climb_rate_ms = met.climb_rate_m_s
             await asyncio.sleep(delay)
+
+    
+    async def get_fixedwing_metrics(self):
+        while self.fixedwing_metrics == None:
+            await asyncio.sleep(0.01)
+        return self.fixedwing_metrics
 
 
     def apply_thermal_force(self, force: float):

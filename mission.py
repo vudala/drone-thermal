@@ -3,7 +3,6 @@ from drone_core import DroneCore
 
 # 3rd party
 import asyncio
-from mavsdk import System
 from mavsdk.mission import (MissionItem, MissionPlan)
 from mavsdk.telemetry import Position
 from mavsdk.offboard import PositionNedYaw, PositionGlobalYaw, OffboardError
@@ -14,7 +13,7 @@ import utils
 ACCEPTANCE_RADIUS_CM = 100
 
 thermals = [
-    {"x": 25, "y": 50}
+    {"x": 25, "y": 50, "visited": False}
 ]
 
 points = [
@@ -114,28 +113,6 @@ async def ride_thermal(drone: DroneCore, thermal: Thermal, height: float):
     drone.clear_thermal_force()
 
 
-# async def in_thermal(drone: DroneCore, thermal: Thermal, projection):
-#     async for p in drone.telemetry.position():
-#         t_lat, t_lon = xy_to_global(thermal.x, thermal.y, projection)
-#         t_pos = Position(
-#             t_lat, t_lon,
-#             p.absolute_altitude_m, p.relative_altitude_m
-#         )
-
-#         dist = utils.distance_cm(p, t_pos)
-
-#         # if in range of radius of thermal
-#         if dist < thermal.radius:
-#             # start loitering
-#             await drone.offboard.set_position_global(
-                
-#             )
-#             # activate thermal lift
-#             # wait until it reaches desired altitude
-#             # resume mission
-#             pass
-
-
 """
 Assume that the drone is navigating through a mission and following a given
 waypoint. This coroutine exits to determine if its worth it to stop the
@@ -144,10 +121,15 @@ mission, activate offboard and go torwards a thermal in order to gain lift.
 async def scan_for_thermal(drone: DroneCore, thermals: list):
     while True:
         for t in thermals:
-            if worth_it(drone, t):
+            if not t["visited"] and worth_it(drone, t):
+                t["visited"] = True
+
                 await drone.mission.pause_mission()
 
                 await follow_thermal(drone, t)
+
+                # SET NAV_LOITER_RAD
+                await drone.param.set_param_float("NAV_LOITER_RAD", float(40.0))
 
                 await ride_thermal(drone, t, )
 

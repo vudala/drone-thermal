@@ -17,11 +17,11 @@ thermals = [
 ]
 
 points = [
-    {"x":  0, "y": 0, "z": 10},
-    {"x": 50, "y": 0, "z": 10},
-    {"x": 50, "y": 50, "z": 10},
-    {"x": 0, "y": 50, "z": 10},
-    {"x": 0, "y": 0, "z": 10},
+    {"x":  500, "y": 0, "z": 150},
+    {"x": 750, "y": 200, "z": 250},
+    {"x": 1250, "y": 200, "z": 250},
+    {"x": 1500, "y": 0, "z": 225},
+    {"x": 2000, "y": 0, "z": 300},
 ]
 
 class Thermal():
@@ -129,23 +129,24 @@ async def scan_for_thermal(drone: DroneCore, thermals: list):
                 await follow_thermal(drone, t)
 
                 # SET NAV_LOITER_RAD
-                await drone.param.set_param_float("NAV_LOITER_RAD", float(40.0))
+                await drone.system.param.set_param_float("NAV_LOITER_RAD", float(40.0))
 
                 await ride_thermal(drone, t, )
 
-                await drone.mission.start_mission()
+                await drone.system.mission.start_mission()
 
 
 async def run(drone: DroneCore):
-
-    await drone.offboard.set_position_ned(PositionNedYaw(0.0, 0.0, 0.0, 0.0))
+    await drone.system.offboard.set_position_ned(
+        PositionNedYaw(0.0, 0.0, 0.0, 0.0)
+    )
 
     mission_items = []
 
     pos = await drone.get_position()
 
     # Initial GPS coordinates and altitude
-    origin_lat, origin_lon, origin_alt = pos.latitude_deg, pos.longitude_deg, pos.absolute_altitude_m
+    origin_lat, origin_lon = pos.latitude_deg, pos.longitude_deg
 
     # Define the azimuthal equidistant projection with center point coordinates
     projection = CRS.from_string(
@@ -171,21 +172,22 @@ async def run(drone: DroneCore):
     
     mission_plan = MissionPlan(mission_items)
 
-    await drone.mission.set_return_to_launch_after_mission(True)
+    await drone.system.mission.set_return_to_launch_after_mission(False)
+    # await drone.system.param.set_param_int("RTL_TYPE", int(1))
+    await drone.system.param.set_param_int("MIS_TKO_LAND_REQ", int(0))
 
     print("-- Uploading mission")
-    await drone.mission.upload_mission(mission_plan)
-
-    print("Waiting for drone to have a global position estimate...")
-    async for health in drone.telemetry.health():
-        if health.is_global_position_ok and health.is_home_position_ok:
-            print("-- Global position estimate OK")
-            break
+    await drone.system.mission.upload_mission(mission_plan)
 
     print("-- Arming")
-    await drone.action.arm()
+    await drone.system.action.arm()
+
+    print("-- Taking off")
+    await drone.system.action.takeoff()
+
+    await asyncio.sleep(10)
 
     print("-- Starting mission")
-    await drone.mission.start_mission()
+    await drone.system.mission.start_mission()
 
-    await scan_for_thermal(drone, thermals)
+    # await scan_for_thermal(drone, thermals)

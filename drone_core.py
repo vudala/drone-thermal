@@ -18,7 +18,7 @@ from logger import Logger
 MAVSDK_SERVER_DEFAULT_PORT = 50051
 
 
-class DroneCore(System):
+class DroneCore():
     """
     Wraps the ROS2 and MAVSDK functionalities into an abstraction of a UAV
     """
@@ -30,10 +30,9 @@ class DroneCore(System):
         """
         Inits the attributes, mavsdk_server, ros2 node and publishers
         """
-        super().__init__(port=(MAVSDK_SERVER_DEFAULT_PORT + instance))
+        self.system = System(port=(MAVSDK_SERVER_DEFAULT_PORT + instance))
 
         self.name = name
-
         self.priority = priority
 
         self.node_name = 'drone_{}'.format(instance)
@@ -68,7 +67,7 @@ class DroneCore(System):
         Wait for the sensors to stabilize
         """
         self.logger.info("Waiting for drone to connect...")
-        async for state in self.core.connection_state():
+        async for state in self.system.core.connection_state():
             if state.is_connected:
                 self.logger.info(f"-- Connected to drone!")
                 break
@@ -76,7 +75,7 @@ class DroneCore(System):
         self.logger.info(
             "Waiting for drone to have a global position estimate..."
         )
-        async for health in self.telemetry.health():
+        async for health in self.system.telemetry.health():
             if health.is_global_position_ok and health.is_home_position_ok:
                 self.logger.info("-- Global position estimate OK")
                 break
@@ -147,7 +146,7 @@ class DroneCore(System):
         - delay: float
             - Delay in seconds between iterations
         """
-        async for pos in self.telemetry.position():
+        async for pos in self.system.telemetry.position():
             self.position = pos
             self.relative_alt_m = pos.relative_altitude_m
             self.publish_position()
@@ -169,7 +168,7 @@ class DroneCore(System):
         - delay: float
             - Delay in seconds between iterations
         """
-        async for v in self.telemetry.velocity_ned():
+        async for v in self.system.telemetry.velocity_ned():
             self.velocity_ned = v
             await asyncio.sleep(delay)
 
@@ -210,7 +209,7 @@ class DroneCore(System):
         - delay: float
             - Delay in seconds between iterations
         """
-        async for met in self.telemetry.fixedwing_metrics():
+        async for met in self.system.telemetry.fixedwing_metrics():
             self.fixedw = met
             self.airspeed_ms = met.airspeed_m_s
             self.throttle_pct = met.throttle_percentage

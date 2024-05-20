@@ -43,7 +43,7 @@ async def create(name: str, instance: int, priority: int, logger_path: str):
     sys_addr = 'udp://:' + str(PX4_SITL_DEFAULT_PORT + instance)
 
     drone.logger.info('Trying to connect to ' + sys_addr)
-    await drone.connect(system_address=sys_addr)
+    await drone.system.connect(system_address=sys_addr)
     drone.logger.info('Connected to PX4')
 
     await drone.stabilize()
@@ -109,8 +109,7 @@ async def proceed():
 
 
 async def start_coroutines(
-        drone: DroneCore, total: int,
-        mission_path: str = None
+        drone: DroneCore, total: int
     ):
     """
     Setup and kickstart all the coroutines of the drone
@@ -120,8 +119,6 @@ async def start_coroutines(
         - Target drone
     - total: int
         - Total number of drones in the swarm
-    - mission_path: str
-        - Path to .plan missions file
     """
     coros = []
 
@@ -130,10 +127,11 @@ async def start_coroutines(
         asyncio.to_thread(rclpy.spin, drone.ros2_node)
     ) 
 
+    # the refreshers
     coros.append(refresher(drone))
 
-    if mission_path != None:
-        coros.append(mission.run_mission(drone, mission_path)) 
+    # the mission
+    coros.append(mission.run(drone))
 
     # create tasks for all coroutines
     group = asyncio.gather(*coros)
@@ -146,7 +144,7 @@ async def start_coroutines(
 async def execute_core(
         name: str, inst: int, total: int,
         barrier: Barrier,
-        logger_path: str, mission: str
+        logger_path: str
     ):
     """
     Wraps the functionalities
@@ -174,7 +172,7 @@ async def execute_core(
 
     dro.logger.info('All drones synced')
     dro.logger.info('Starting the coroutines')
-    await start_coroutines(dro, total, mission)
+    await start_coroutines(dro, total)
 
 
 def execute(

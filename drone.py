@@ -91,10 +91,12 @@ async def refresher(drone: DroneCore):
     """
     position_ref_coro = drone.position_refresher(POSITION_REFRESH_DELAY)
     velocity_ref_coro = drone.velocity_refresher(VELOCITY_REFRESH_DELAY)
+    mission_ref_coro = drone.mission_progress_refresher()
 
     group = asyncio.gather(
         position_ref_coro,
-        velocity_ref_coro
+        velocity_ref_coro,
+        mission_ref_coro
     )
 
     await group

@@ -61,6 +61,8 @@ class DroneCore():
         self.throttle_pct = None
         self.climb_rate_ms = None
 
+        self.mission_progress = None
+
 
     async def stabilize(self):
         """
@@ -150,7 +152,6 @@ class DroneCore():
             self.position = pos
             self.relative_alt_m = pos.relative_altitude_m
             self.publish_position()
-            await asyncio.sleep(delay)
 
 
     async def get_position(self):
@@ -170,7 +171,6 @@ class DroneCore():
         """
         async for v in self.system.telemetry.velocity_ned():
             self.velocity_ned = v
-            await asyncio.sleep(delay)
 
 
     async def get_velocity_ned(self):
@@ -189,9 +189,9 @@ class DroneCore():
             - Delay in seconds between iterations
         """
         while True:
-            await asyncio.sleep(delay)
             vel = await self.get_velocity_ned()
             self.ground_speed_ms = utils.ground_speed_ms(vel)
+            await asyncio.sleep(delay)
 
 
     async def get_ground_speed_ms(self):
@@ -200,7 +200,7 @@ class DroneCore():
         return self.ground_speed_ms
 
 
-    async def get_fixedwing_metrics_refresher(self, delay):
+    async def fixedwing_metrics_refresher(self):
         """
         Keeps updating drones airspeed, throttle and climb rate
 
@@ -214,7 +214,6 @@ class DroneCore():
             self.airspeed_ms = met.airspeed_m_s
             self.throttle_pct = met.throttle_percentage
             self.climb_rate_ms = met.climb_rate_m_s
-            await asyncio.sleep(delay)
 
     
     async def get_fixedwing_metrics(self):
@@ -250,3 +249,14 @@ class DroneCore():
         """.format(self.name)
 
         subprocess.run(command, shell = True, executable="/bin/bash")
+
+
+    async def mission_progress_refresher(self):
+        async for mission_progress in self.system.mission.mission_progress():
+            self.mission_progress = mission_progress
+
+
+    async def get_mission_progress(self):
+        while self.mission_progress == None:
+            await asyncio.sleep(0.1)
+        return self.mission_progress

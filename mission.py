@@ -13,7 +13,7 @@ import utils
 ACCEPTANCE_RADIUS_CM = 100
 
 t_list = [
-    {"x": 1000, "y": 220}
+    {"x": 400, "y": 240}
 ]
 
 class Thermal():
@@ -31,11 +31,11 @@ class Thermal():
 thermals = []
 
 p_list = [
-    {"x":  500, "y": 0, "z": 150},
-    {"x": 750, "y": 200, "z": 250},
-    {"x": 1250, "y": 200, "z": 300},
-    {"x": 1500, "y": 0, "z": 225},
-    {"x": 2000, "y": 0, "z": 300},
+    {"x":  200, "y": 0, "z": 150},
+    {"x": 300, "y": 200, "z": 150},
+    {"x": 500, "y": 200, "z": 300},
+    {"x": 750, "y": 0, "z": 200},
+    {"x": 1000, "y": 0, "z": 300},
 ]
 
 class Waypoint():
@@ -54,13 +54,13 @@ points = []
 
 # Define the WGS84 geographic coordinate system (latitude, longitude)
 wgs84 = CRS.from_epsg(4326)  # EPSG code for WGS84
-def xy_to_global(x_local, y_local, projection):
+def xy_to_global(x_local: float, y_local: float, projection):
     # Create a transformer object
     transformer = Transformer.from_crs(projection, wgs84)
     return transformer.transform(x_local, y_local)
 
 
-def global_to_xy(latitude, longitude, projection):
+def global_to_xy(latitude: float, longitude: float, projection):
     # Create a transformer object (switched order for reverse conversion)
     transformer = Transformer.from_crs(wgs84, projection)
     return transformer.transform(longitude, latitude)
@@ -86,7 +86,7 @@ async def worth_it(drone: DroneCore, thermal: Thermal):
     print(next_waypoint.z - drone_pos.relative_altitude_m, end=' ')
     print(utils.distance_cm(drone_pos, thermal_pos) / 100)
     if next_waypoint.z - drone_pos.relative_altitude_m > 20:
-        if utils.distance_cm(drone_pos, thermal_pos) / 100 < 30:
+        if utils.distance_cm(drone_pos, thermal_pos) / 100 < 50:
             return True
     
     return False
@@ -97,7 +97,7 @@ async def reach_position(drone: DroneCore, target: Position):
     It hold the execution until the drones has gotten close enough to the
     desired position
     """
-    await drone.offboard.set_position_global(target)
+    await drone.system.offboard.set_position_global(target)
 
     while utils.distance_cm(drone.position, target) < ACCEPTANCE_RADIUS_CM:
         await asyncio.sleep(0.1)
@@ -106,12 +106,12 @@ async def reach_position(drone: DroneCore, target: Position):
 async def follow_thermal(drone: DroneCore, thermal: Thermal):
     print("-- Starting offboard")
     try:
-        await drone.offboard.start()
+        await drone.system.offboard.start()
     except OffboardError as error:
         print(f"Starting offboard mode failed \
                 with error code: {error._result.result}")
         print("-- Disarming")
-        await drone.action.return_to_launch()
+        await drone.system.action.return_to_launch()
         return
     
     target = thermal.global_position
@@ -143,9 +143,9 @@ async def scan_for_thermal(drone: DroneCore):
             if not t.visited and await worth_it(drone, t):
                 t.visited = True
 
-                print("WORTH IIIIIIIIIIIT")
-
-                # await drone.system.mission.pause_mission()
+                await drone.system.mission.pause_mission()
+                await asyncio.sleep(10)
+                await drone.system.mission.start_mission()
 
                 # await follow_thermal(drone, t)
 

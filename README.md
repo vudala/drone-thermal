@@ -29,27 +29,33 @@ python3 maestro.py -h
 The JSON file must be organized in the following way:
 ```json
 {
-    "name_of_drone_1": {
-        "mission_path" : null
-    },
-    "name_of_drone_2": {
-        "mission_path" : "another/mission.plan"
-    },
-    "name_of_drone_3": {
-        "mission_path" : "path/to/file.plan"
-    },
-    "name_of_drone_4": {}
+    "drones": [
+        {
+            "name": "drone1",
+            "mission_waypoints": [
+                {
+                    "x": 10,
+                    "y": 10,
+                    "z": 10
+                }
+            ]
+        }
+    ],
+    "thermals": [
+        {
+            "x": 10,
+            "y": 10,
+            "force": 5
+        }
+    ]
 }
 ```
-Using this file 4 drones would be spawned. Drone named ”name_of_drone3”
-would try to execute a mission described by the path/to/file.plan file, and
-drone named ”name_of_drone2” would try to execute a mission described by the
-another/mission.plan file.
+You can define multiple drones using the "drones" attribute, each drone is
+described by it's name, and the waypoints of it's mission.
 
-Notice that you can manually setup the name of the drone, inform how
-many drones to be spawned and give missions for them to be executed, all in
-one configuration file. It also allows us to implement new features using the
-same configuration file.
+Using the "thermals" attribute you can define it's XY position, and also the
+force that the thermal will apply over the drone if it ever come in contact with
+it.
 
 #### -c, --config
 You can point to a configuration file using this option, it can be written in

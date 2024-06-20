@@ -12,12 +12,9 @@ import utils
 
 ACCEPTANCE_RADIUS_CM = 100
 
-t_list = [
-    {"x": 400, "y": 240}
-]
 
 class Thermal():
-    def __init__(self, x, y, projection, force, radius):
+    def __init__(self, x, y, force, radius, projection):
         self.x = x
         self.y = y
         lat, lon = xy_to_global(x, y, projection)
@@ -28,18 +25,8 @@ class Thermal():
         self.radius = radius
         self.visited = False
 
-thermals = []
-
-p_list = [
-    {"x":  200, "y": 0, "z": 150},
-    {"x": 300, "y": 200, "z": 150},
-    {"x": 500, "y": 200, "z": 300},
-    {"x": 750, "y": 0, "z": 200},
-    {"x": 1000, "y": 0, "z": 300},
-]
-
 class Waypoint():
-    def __init__(self, x, y, projection, altitude, speed):
+    def __init__(self, x, y, altitude, speed, projection):
         self.x = x
         self.y = y
         self.z = altitude
@@ -137,7 +124,7 @@ Assume that the drone is navigating through a mission and following a given
 waypoint. This coroutine exits to determine if its worth it to stop the
 mission, activate offboard and go torwards a thermal in order to gain lift.
 """
-async def scan_for_thermal(drone: DroneCore):
+async def scan_for_thermal(drone: DroneCore, thermals: list):
     while True:
         for t in thermals:
             if not t.visited and await worth_it(drone, t):
@@ -160,34 +147,27 @@ async def scan_for_thermal(drone: DroneCore):
         await asyncio.sleep(0.1)
 
 
-async def run(drone: DroneCore):
-    await drone.system.offboard.set_position_ned(
-        PositionNedYaw(0.0, 0.0, 0.0, 0.0)
-    )
 
+
+def create_mission(waypoints: list):
+    """
+    Creates a mission plan object, given a list of Waypoints
+
+    Paremeters
+    ----------
+    - waypoints: list
+        - List of waypoints to be followed during mission
+
+    Return
+    ------
+    - mission_plan: MissionPlan
+    """
     mission_items = []
-
-    pos = await drone.get_position()
-
-    # Initial GPS coordinates and altitude
-    origin_lat, origin_lon = pos.latitude_deg, pos.longitude_deg
-
-    # Define the azimuthal equidistant projection with center point coordinates
-    projection = CRS.from_string(
-        f"+proj=aeqd +lon_0={origin_lon} +lat_0={origin_lat}"
-    )
-
-    for t in t_list:
-        thermals.append(Thermal(t["x"], t["y"], projection, 0, 0))
-    
-    for p in p_list:
-        points.append(Waypoint(p["x"], p["y"], projection, p["z"], 0))
-
-    for waypoint in points:
+    for wp in waypoints:
         mission_item = MissionItem(
-            waypoint.global_position.latitude_deg,
-            waypoint.global_position.longitude_deg,
-            waypoint.z,
+            wp.global_position.latitude_deg,
+            wp.global_position.longitude_deg,
+            wp.z,
             10,
             True,
             float('nan'),
@@ -202,14 +182,39 @@ async def run(drone: DroneCore):
         )
         mission_items.append(mission_item)
 
-    mission_plan = MissionPlan(mission_items)
+    return MissionPlan(mission_items)
 
+
+async def upload_mission(drone: DroneCore, waypoints: list):
     await drone.system.mission.set_return_to_launch_after_mission(False)
-    # await drone.system.param.set_param_int("RTL_TYPE", int(1))
     await drone.system.param.set_param_int("MIS_TKO_LAND_REQ", int(0))
+
+    mission_plan = create_mission(waypoints)
 
     drone.logger.info("-- Uploading mission")
     await drone.system.mission.upload_mission(mission_plan)
+
+
+async def run(drone: DroneCore, waypoints: list, thermals: list):
+    await drone.system.offboard.set_position_ned(
+        PositionNedYaw(0.0, 0.0, 0.0, 0.0)
+    )
+
+    pos = await drone.get_position()
+
+    # Initial GPS coordinates and altitude
+    origin_lat, origin_lon = pos.latitude_deg, pos.longitude_deg
+
+    # Define the azimuthal equidistant projection with center point coordinates
+    projection = CRS.from_string(
+        f"+proj=aeqd +lon_0={origin_lon} +lat_0={origin_lat}"
+    )
+
+    points = []    
+    for p in waypoints:
+        points.append(Waypoint(p["x"], p["y"], p["z"], 0, projection))
+
+    await upload_mission(drone, points)    
 
     drone.logger.info("-- Arming")
     await drone.system.action.arm()
@@ -222,4 +227,8 @@ async def run(drone: DroneCore):
     drone.logger.info("-- Starting mission")
     await drone.system.mission.start_mission()
 
-    await scan_for_thermal(drone)
+    therms = []
+    for t in thermals:
+        therms.append(Thermal(t["x"], t["y"], t["force"], 0, projection))
+    
+    await scan_for_thermal(drone, therms)

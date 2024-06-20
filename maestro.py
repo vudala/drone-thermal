@@ -59,24 +59,26 @@ def main(conf_path: str):
     log.info('Maestro initialized')
     log.info('Creating the drones')
 
-    drones_config = read_config(log, conf_path)
+    config = read_config(log, conf_path)
 
-    if drones_config == None:
+    if config == None:
         log.error("Please provide a configuration file")
         quit()
 
-    total_drones = len(drones_config)
+    total_drones = len(config["drones"])
     barrier = Barrier(parties=total_drones)
 
     procs = []
     
     inst = 0
-    for d_name in drones_config:
+    for drone in config["drones"]:
 
         p = Process(
             target=drone.execute,
             args=[
-                d_name,
+                drone["name"],
+                drone["mission_waypoints"],
+                config["thermals"],
                 inst,
                 total_drones,
                 barrier,

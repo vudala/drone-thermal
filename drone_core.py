@@ -224,7 +224,7 @@ class DroneCore():
 
     def apply_thermal_force(self, force: float):
         command = """
-        gz topic -t /world/default/wrench/persistent -m gz.msgs.EntityWrench -p\
+        gz topic -t /world/default/wrench/persistent -m gz.msgs.EntityWrench -p\\
         'entity: {
             type: 2,
             name: "{}"
@@ -241,7 +241,7 @@ class DroneCore():
 
     def clear_thermal_force(self):
         command = """
-        gz topic -t /world/default/wrench/clear -m gz.msgs.EntityWrench -p\
+        gz topic -t /world/default/wrench/clear -m gz.msgs.EntityWrench -p\\
         'entity: {
             type: 2,
             name: "{}"

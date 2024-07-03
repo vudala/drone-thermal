@@ -6,7 +6,7 @@ from multiprocessing import Process, Barrier
 
 # self
 from logger import Logger
-import drone
+import drone_tasks
 
 
 def root_path():
@@ -30,6 +30,10 @@ def read_config(logger: Logger, path: str):
         - Which logger to use
     - path: str
         - Path to config file
+    
+    Return
+    ------
+    - config: dict
     """
     if os.path.exists(path):
         logger.info('Reading drones config from {}'.format(path))
@@ -50,8 +54,8 @@ def main(conf_path: str):
 
     Parameters
     ----------
-    - total_drones: int
-        - How many drones to create
+    - conf_path: str
+        - Filepath to configuration file
     """
     log_path = os.path.join(root_path(), 'log')
     log = Logger(log_path)
@@ -70,11 +74,9 @@ def main(conf_path: str):
 
     procs = []
     
-    inst = 0
-    for drone in config["drones"]:
-
+    for inst, drone in enumerate(config["drones"]):
         p = Process(
-            target=drone.execute,
+            target=drone_tasks.execute,
             args=[
                 drone["name"],
                 drone["mission_waypoints"],
@@ -90,8 +92,6 @@ def main(conf_path: str):
         procs.append(p)
 
         log.info('Drone {} created'.format(inst))
-
-        inst += 1
     
     log.info('All drones were created')
     log.info('Waiting for the drones to finish execution') 
@@ -106,10 +106,6 @@ def get_args():
     """
     Process the arguments, displays a help message if arguments were not given
     correctly
-
-    Return
-    ------
-    - args: Object {drones_n, miss_path}
     """
     parser = argparse.ArgumentParser(
         prog='python3 maestro.py',

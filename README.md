@@ -5,14 +5,17 @@ Implementing a drone swarm controller on PX4 SITL, simulating the effect of ther
 You will need all these libraries:
 
 - Python client for ROS 2 Humble:
-  - Follow the standard process of instalation and setup for ROS2
-  https://docs.ros.org/
+    - Follow the standard process of instalation and setup for ROS2
+    https://docs.ros.org/
 
 - asyncio
-  - Install: pip install asyncio
+    - Install: pip install asyncio
 
 - MAVSDK-Python
-  - Install: pip install mavsdk
+    - Install: pip install mavsdk
+
+- pyproj
+    - Install: pip install pyproj
 
 ### Usage
 
@@ -37,6 +40,7 @@ The JSON file must be organized in the following way:
                     "x": 10,
                     "y": 10,
                     "z": 10
+                    
                 }
             ]
         }

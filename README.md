@@ -39,8 +39,8 @@ The JSON file must be organized in the following way:
                 {
                     "x": 10,
                     "y": 10,
-                    "z": 10
-                    
+                    "altitude_m": 10,
+                    "speed_ms": 10
                 }
             ]
         }
@@ -55,7 +55,9 @@ The JSON file must be organized in the following way:
 }
 ```
 You can define multiple drones using the "drones" attribute, each drone is
-described by it's name, and the waypoints of it's mission.
+described by it's name, and the waypoints of it's mission. The waypoints are
+composed of their XY position, its altitude and the speed the drone needs to
+reach after reaching it.
 
 Using the "thermals" attribute you can define it's XY position, and also the
 force that the thermal will apply over the drone if it ever come in contact with

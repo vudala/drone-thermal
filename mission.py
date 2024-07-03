@@ -26,18 +26,16 @@ class Thermal():
         self.visited = False
 
 class Waypoint():
-    def __init__(self, x, y, altitude, speed, projection):
+    def __init__(self, x, y, altitude_m, speed_ms, projection):
         self.x = x
         self.y = y
-        self.z = altitude
+        self.altitude_m = altitude_m
         lat, lon = xy_to_global(x, y, projection)
         self.global_position = Position(
-            lat, lon, altitude, 0
+            lat, lon, altitude_m, 0
         )
-        self.altitude = altitude
-        self.speed = speed
+        self.speed_Ms = speed_ms
 
-points = []
 
 # Define the WGS84 geographic coordinate system (latitude, longitude)
 wgs84 = CRS.from_epsg(4326)  # EPSG code for WGS84
@@ -53,26 +51,26 @@ def global_to_xy(latitude: float, longitude: float, projection):
     return transformer.transform(longitude, latitude)
 
 
-async def get_next_waypoint(drone: DroneCore):
+async def get_next_waypoint(drone: DroneCore, points: list):
     m_progress = await drone.get_mission_progress()
     if m_progress.current >= m_progress.total:
         return None
     return points[m_progress.current]
 
 
-async def worth_it(drone: DroneCore, thermal: Thermal):
-    drone_pos = await drone.get_position()
-    next_waypoint = await get_next_waypoint(drone)
+async def worth_it(drone: DroneCore, points: list, thermal: Thermal):
+    next_waypoint = await get_next_waypoint(drone, points)
     if not next_waypoint:
         return False
+    
+    drone_pos = await drone.get_position()
     thermal_pos = thermal.global_position
     thermal_pos.relative_altitude_m = drone_pos.relative_altitude_m
     thermal_pos.absolute_altitude_m = drone_pos.absolute_altitude_m
+
     # if it needs to gain at least 20 meters of height to reach the next waypoint
-    # and if it is at least 30 meters from the thermal
-    print(next_waypoint.z - drone_pos.relative_altitude_m, end=' ')
-    print(utils.distance_cm(drone_pos, thermal_pos) / 100)
-    if next_waypoint.z - drone_pos.relative_altitude_m > 20:
+    # and if its at least 30 meters from the thermal
+    if next_waypoint.altitude_m - drone_pos.relative_altitude_m > 20:
         if utils.distance_cm(drone_pos, thermal_pos) / 100 < 50:
             return True
     
@@ -119,15 +117,15 @@ async def ride_thermal(drone: DroneCore, thermal: Thermal, height: float):
     drone.clear_thermal_force()
 
 
-"""
-Assume that the drone is navigating through a mission and following a given
-waypoint. This coroutine exits to determine if its worth it to stop the
-mission, activate offboard and go torwards a thermal in order to gain lift.
-"""
-async def scan_for_thermal(drone: DroneCore, thermals: list):
+async def scan_for_thermal(drone: DroneCore, points: list, thermals: list):
+    """
+    Assume that the drone is navigating through a mission and following a given
+    waypoint. This coroutine exits to determine if its worth it to stop the
+    mission, activate offboard and go torwards a thermal in order to gain lift.
+    """
     while True:
         for t in thermals:
-            if not t.visited and await worth_it(drone, t):
+            if not t.visited and await worth_it(drone, points, t):
                 t.visited = True
 
                 await drone.system.mission.pause_mission()
@@ -145,8 +143,6 @@ async def scan_for_thermal(drone: DroneCore, thermals: list):
 
                 # await drone.system.mission.start_mission()
         await asyncio.sleep(0.1)
-
-
 
 
 def create_mission(waypoints: list):
@@ -167,8 +163,8 @@ def create_mission(waypoints: list):
         mission_item = MissionItem(
             wp.global_position.latitude_deg,
             wp.global_position.longitude_deg,
-            wp.z,
-            10,
+            wp.altitude_m,
+            wp.speed_ms,
             True,
             float('nan'),
             float('nan'),
@@ -186,6 +182,16 @@ def create_mission(waypoints: list):
 
 
 async def upload_mission(drone: DroneCore, waypoints: list):
+    """
+    Uploads waypoints as a mission for the given drone
+
+    Parameters
+    ----------
+    - drone: DroneCore
+        - The target drone
+    - waypoints: list
+        - A list of Waypoint objects
+    """
     await drone.system.mission.set_return_to_launch_after_mission(False)
     await drone.system.param.set_param_int("MIS_TKO_LAND_REQ", int(0))
 
@@ -196,6 +202,15 @@ async def upload_mission(drone: DroneCore, waypoints: list):
 
 
 async def run(drone: DroneCore, waypoints: list, thermals: list):
+    """
+    Makes the target drone execute a given mission
+    - drone: DroneCore
+        - Target drone
+    - waypoints: list
+        - List of the waypoints of the mission
+    - thermals: list
+        - List of thermals present in the environment
+    """
     await drone.system.offboard.set_position_ned(
         PositionNedYaw(0.0, 0.0, 0.0, 0.0)
     )
@@ -212,7 +227,13 @@ async def run(drone: DroneCore, waypoints: list, thermals: list):
 
     points = []    
     for p in waypoints:
-        points.append(Waypoint(p["x"], p["y"], p["z"], 0, projection))
+        points.append(
+            Waypoint(
+                p["x"], p["y"],
+                p["altitude_m"], p["speed_ms"],
+                projection
+            )
+        )
 
     await upload_mission(drone, points)    
 
@@ -231,4 +252,4 @@ async def run(drone: DroneCore, waypoints: list, thermals: list):
     for t in thermals:
         therms.append(Thermal(t["x"], t["y"], t["force"], 0, projection))
     
-    await scan_for_thermal(drone, therms)
+    await scan_for_thermal(drone, points, therms)

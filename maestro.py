@@ -6,7 +6,7 @@ from multiprocessing import Process, Barrier
 
 # self
 from logger import Logger
-import drone_tasks
+import tasks
 
 
 def root_path():
@@ -76,7 +76,7 @@ def main(conf_path: str):
     
     for inst, drone in enumerate(config["drones"]):
         p = Process(
-            target=drone_tasks.execute,
+            target=tasks.execute,
             args=[
                 drone["name"],
                 drone["mission_waypoints"],

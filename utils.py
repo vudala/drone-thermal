@@ -90,7 +90,7 @@ def distance_cm(pos1: Position, pos2: Position):
     """
     lat1, lat2 = (pos1.latitude_deg, pos2.latitude_deg)
     lon1, lon2 = (pos1.longitude_deg, pos2.longitude_deg)
-    hei1, hei2 = (pos1.absolute_altitude_m, pos2.absolute_altitude_m)
+    hei1, hei2 = (pos1.relative_altitude_m, pos2.relative_altitude_m)
 
     lat1, lat2 = (math.radians(lat1), math.radians(lat2))
     lon1, lon2 = (math.radians(lon1), math.radians(lon2))

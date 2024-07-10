@@ -5,7 +5,7 @@ from drone_core import DroneCore
 import asyncio
 from mavsdk.mission import (MissionItem, MissionPlan)
 from mavsdk.telemetry import Position
-from mavsdk.offboard import OffboardError, PositionNedYaw
+from mavsdk.offboard import OffboardError, PositionNedYaw, PositionGlobalYaw
 from pyproj import CRS, Transformer
 
 import utils
@@ -23,7 +23,7 @@ class Thermal():
         )
         self.force = force
         self.radius = radius
-        self.visited = False
+        self.available = True
 
 class Waypoint():
     def __init__(self, x, y, altitude_m, speed_ms, projection):
@@ -34,7 +34,16 @@ class Waypoint():
         self.global_position = Position(
             lat, lon, altitude_m, 0
         )
-        self.speed_Ms = speed_ms
+        self.speed_ms = speed_ms
+
+
+def pos_to_pos_global_yaw(pos: Position):
+    return PositionGlobalYaw(
+        pos.latitude_deg,
+        pos.longitude_deg,
+        pos.relative_altitude_m,
+        0, PositionGlobalYaw.AltitudeType.REL_HOME
+    )
 
 
 # Define the WGS84 geographic coordinate system (latitude, longitude)
@@ -70,8 +79,11 @@ async def worth_it(drone: DroneCore, points: list, thermal: Thermal):
 
     # if it needs to gain at least 20 meters of height to reach the next waypoint
     # and if its at least 30 meters from the thermal
+
+    print(utils.distance_cm(drone_pos, thermal_pos), end=' ')
+    print(next_waypoint.altitude_m - drone_pos.relative_altitude_m)
     if next_waypoint.altitude_m - drone_pos.relative_altitude_m > 20:
-        if utils.distance_cm(drone_pos, thermal_pos) / 100 < 50:
+        if utils.distance_cm(drone_pos, thermal_pos) < 7000:
             return True
     
     return False
@@ -82,22 +94,37 @@ async def reach_position(drone: DroneCore, target: Position):
     It hold the execution until the drones has gotten close enough to the
     desired position
     """
-    await drone.system.offboard.set_position_global(target)
+    target_global_yaw = pos_to_pos_global_yaw(target)
+    await drone.system.offboard.set_position_global(target_global_yaw)
 
-    while utils.distance_cm(drone.position, target) < ACCEPTANCE_RADIUS_CM:
+    while utils.distance_cm(drone.position, target) > ACCEPTANCE_RADIUS_CM:
         await asyncio.sleep(0.1)
 
 
-async def follow_thermal(drone: DroneCore, thermal: Thermal):
-    print("-- Starting offboard")
+async def start_offboard(drone: DroneCore):
+    """
+    Triggers offboard mode
+
+    Parameters
+    ----------
+    - drone: DroneCore
+        - Target drone
+    """
+
+    pos = pos_to_pos_global_yaw(await drone.get_position())
+    await drone.system.offboard.set_position_global(pos)
+
+    drone.logger.info("-- Starting offboard")
     try:
         await drone.system.offboard.start()
     except OffboardError as error:
-        print(f"Starting offboard mode failed \
-                with error code: {error._result.result}")
-        print("-- Disarming")
-        await drone.system.action.return_to_launch()
-        return
+        drone.logger.info(f"Starting offboard mode failed \
+                with error: {error}")
+        # TODO: Define failure behaviour
+
+
+async def follow_thermal(drone: DroneCore, thermal: Thermal):
+    await start_offboard(drone)
     
     target = thermal.global_position
     target.relative_altitude_m = drone.position.relative_altitude_m
@@ -125,14 +152,13 @@ async def scan_for_thermal(drone: DroneCore, points: list, thermals: list):
     """
     while True:
         for t in thermals:
-            if not t.visited and await worth_it(drone, points, t):
-                t.visited = True
+            print(t.available, end=' ')
+            if t.available and await worth_it(drone, points, t):
+                t.available = False
 
                 await drone.system.mission.pause_mission()
-                await asyncio.sleep(10)
-                await drone.system.mission.start_mission()
 
-                # await follow_thermal(drone, t)
+                await follow_thermal(drone, t)
 
                 # # SET NAV_LOITER_RAD
                 # await drone.system.param.set_param_float("NAV_LOITER_RAD", float(40.0))
@@ -142,6 +168,7 @@ async def scan_for_thermal(drone: DroneCore, points: list, thermals: list):
                 # await ride_thermal(drone, t, next_waypoint.z)
 
                 # await drone.system.mission.start_mission()
+                t.available = True
         await asyncio.sleep(0.1)
 
 
@@ -211,9 +238,6 @@ async def run(drone: DroneCore, waypoints: list, thermals: list):
     - thermals: list
         - List of thermals present in the environment
     """
-    await drone.system.offboard.set_position_ned(
-        PositionNedYaw(0.0, 0.0, 0.0, 0.0)
-    )
 
     pos = await drone.get_position()
 

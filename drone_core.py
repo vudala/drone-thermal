@@ -8,6 +8,7 @@ import subprocess
 import asyncio
 from rclpy.node import Node
 from mavsdk import System
+from mavsdk.offboard import PositionGlobalYaw
 from std_msgs.msg import ByteMultiArray, ByteMultiArray
 
 # self
@@ -139,19 +140,15 @@ class DroneCore():
         self.subscribed.add(sub)
 
 
-    async def position_refresher(self, delay):
+    async def position_refresher(self):
         """
         Keeps updating and publishing the drone position
-
-        Parameters
-        ----------
-        - delay: float
-            - Delay in seconds between iterations
         """
         async for pos in self.system.telemetry.position():
             self.position = pos
             self.relative_alt_m = pos.relative_altitude_m
             self.publish_position()
+            await asyncio.sleep(0)
 
 
     async def get_position(self):
@@ -160,17 +157,13 @@ class DroneCore():
         return self.position
 
 
-    async def velocity_refresher(self, delay):
+    async def velocity_refresher(self):
         """
         Keeps updating and publishing the drones NED velocity
-
-        Parameters
-        ----------
-        - delay: float
-            - Delay in seconds between iterations
         """
         async for v in self.system.telemetry.velocity_ned():
             self.velocity_ned = v
+            await asyncio.sleep(0)
 
 
     async def get_velocity_ned(self):
@@ -203,17 +196,13 @@ class DroneCore():
     async def fixedwing_metrics_refresher(self):
         """
         Keeps updating drones airspeed, throttle and climb rate
-
-        Parameters
-        ----------
-        - delay: float
-            - Delay in seconds between iterations
         """
         async for met in self.system.telemetry.fixedwing_metrics():
             self.fixedw = met
             self.airspeed_ms = met.airspeed_m_s
             self.throttle_pct = met.throttle_percentage
             self.climb_rate_ms = met.climb_rate_m_s
+            await asyncio.sleep(0)
 
     
     async def get_fixedwing_metrics(self):
@@ -254,6 +243,7 @@ class DroneCore():
     async def mission_progress_refresher(self):
         async for mission_progress in self.system.mission.mission_progress():
             self.mission_progress = mission_progress
+            await asyncio.sleep(0)
 
 
     async def get_mission_progress(self):

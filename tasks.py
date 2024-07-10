@@ -89,8 +89,8 @@ async def refresher(drone: DroneCore):
     - drone: DroneCore
         - Target drone of the refreshing tasks
     """
-    position_ref_coro = drone.position_refresher(POSITION_REFRESH_DELAY)
-    velocity_ref_coro = drone.velocity_refresher(VELOCITY_REFRESH_DELAY)
+    position_ref_coro = drone.position_refresher()
+    velocity_ref_coro = drone.velocity_refresher()
     mission_ref_coro = drone.mission_progress_refresher()
 
     group = asyncio.gather(

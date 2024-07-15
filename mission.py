@@ -10,7 +10,7 @@ from pyproj import CRS, Transformer
 
 import utils
 
-ACCEPTANCE_RADIUS_CM = 100
+ACCEPTANCE_RADIUS_CM = 500
 
 
 class Thermal():
@@ -97,8 +97,11 @@ async def reach_position(drone: DroneCore, target: Position):
     target_global_yaw = pos_to_pos_global_yaw(target)
     await drone.system.offboard.set_position_global(target_global_yaw)
 
-    while utils.distance_cm(drone.position, target) > ACCEPTANCE_RADIUS_CM:
+    pos = await drone.get_position()
+    while utils.distance_cm(pos, target) > ACCEPTANCE_RADIUS_CM:
         await asyncio.sleep(0.1)
+        print(f"Distance: {utils.distance_cm(pos, target)}")
+        pos = await drone.get_position()
 
 
 async def start_offboard(drone: DroneCore):
@@ -134,14 +137,22 @@ async def follow_thermal(drone: DroneCore, thermal: Thermal):
 
 
 async def ride_thermal(drone: DroneCore, thermal: Thermal, height: float):
-    drone.apply_thermal_force(thermal.force)
-    
-    # thermal xy, next waypoint z
-    target = thermal.global_position
-    target.relative_altitude_m = height
-    await reach_position(drone, target)
+    #drone.apply_thermal_force(thermal.force)
 
-    drone.clear_thermal_force()
+    target_global_yaw = pos_to_pos_global_yaw(thermal.global_position)
+    target_global_yaw.alt_m = height
+    await drone.system.offboard.set_position_global(target_global_yaw)
+
+    pos = await drone.get_position()
+    diff = (height - pos.relative_altitude_m) * 100
+    print(diff)
+    while diff > ACCEPTANCE_RADIUS_CM:
+        print(diff)
+        await asyncio.sleep(0.1)
+        pos = await drone.get_position()
+        diff = (height - pos.relative_altitude_m) * 100
+
+    #drone.clear_thermal_force()
 
 
 async def scan_for_thermal(drone: DroneCore, points: list, thermals: list):
@@ -161,13 +172,14 @@ async def scan_for_thermal(drone: DroneCore, points: list, thermals: list):
                 await follow_thermal(drone, t)
 
                 # # SET NAV_LOITER_RAD
-                # await drone.system.param.set_param_float("NAV_LOITER_RAD", float(40.0))
+                await drone.system.param.set_param_float("NAV_LOITER_RAD", float(40.0))
 
-                # next_waypoint = await get_next_waypoint(drone)
+                next_waypoint = await get_next_waypoint(drone, points)
+                print("Going for it")
+                await ride_thermal(drone, t, next_waypoint.altitude_m)
+                print("XD")
 
-                # await ride_thermal(drone, t, next_waypoint.z)
-
-                # await drone.system.mission.start_mission()
+                await drone.system.mission.start_mission()
                 t.available = True
         await asyncio.sleep(0.1)
 
@@ -198,7 +210,7 @@ def create_mission(waypoints: list):
             MissionItem.CameraAction.NONE,
             float('nan'),
             float('nan'),
-            float('nan'),
+            5.0,
             float('nan'),
             float('nan'),
             MissionItem.VehicleAction.NONE
@@ -266,8 +278,6 @@ async def run(drone: DroneCore, waypoints: list, thermals: list):
 
     drone.logger.info("-- Taking off")
     await drone.system.action.takeoff()
-
-    await asyncio.sleep(10)
 
     drone.logger.info("-- Starting mission")
     await drone.system.mission.start_mission()

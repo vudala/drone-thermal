@@ -152,6 +152,9 @@ class DroneCore():
 
 
     async def get_position(self):
+        """
+        Returns the position, blocking operation if N/A
+        """
         while self.position == None:
             await asyncio.sleep(0.01)
         return self.position
@@ -167,6 +170,9 @@ class DroneCore():
 
 
     async def get_velocity_ned(self):
+        """
+        Returns the NED velocity, blocking operation if N/A
+        """
         while self.velocity_ned == None:
             await asyncio.sleep(0.01)
         return self.velocity_ned
@@ -188,6 +194,9 @@ class DroneCore():
 
 
     async def get_ground_speed_ms(self):
+        """
+        Returns the ground speed, blocking operation if N/A
+        """
         while self.ground_speed_ms == None:
             await asyncio.sleep(0.01)
         return self.ground_speed_ms
@@ -206,6 +215,9 @@ class DroneCore():
 
     
     async def get_fixedwing_metrics(self):
+        """
+        Returns fixedwing metrics, blocking operation if N/A
+        """
         while self.fixedwing_metrics == None:
             await asyncio.sleep(0.01)
         return self.fixedwing_metrics
@@ -234,19 +246,25 @@ class DroneCore():
         entity: {{
             type: 2,
             name: "{self.name}"
-        }}
+        }}'
         """
 
         subprocess.run(command, shell = True, executable="/bin/bash")
 
 
     async def mission_progress_refresher(self):
+        """
+        Keeps updating the mission progress
+        """
         async for mission_progress in self.system.mission.mission_progress():
             self.mission_progress = mission_progress
             await asyncio.sleep(0)
 
 
     async def get_mission_progress(self):
+        """
+        Returns the mission progress, blocking operation if N/A
+        """
         while self.mission_progress == None:
             await asyncio.sleep(0.1)
         return self.mission_progress

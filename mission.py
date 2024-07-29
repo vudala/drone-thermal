@@ -12,7 +12,7 @@ from pyproj import CRS, Transformer
 import utils
 from typing import Optional
 
-ACCEPTANCE_RADIUS_M = 5
+ACCEPTANCE_RADIUS_M = 10
 
 # Minimum altitude to gain from a thermal
 MIN_WORTH_ALTITUDE_M = 20
@@ -218,8 +218,8 @@ async def scan_for_thermal(drone: DroneCore, points: list, thermals: list):
 
                 await follow_thermal(drone, t)
 
-                # SET NAV_LOITER_RAD
-                await drone.system.param.set_param_float("NAV_LOITER_RAD", float(40.0))
+                # # SET NAV_LOITER_RAD
+                # await drone.system.param.set_param_float("NAV_LOITER_RAD", float(40.0))
 
                 await ride_thermal(drone, t, next_waypoint.altitude_m)
 

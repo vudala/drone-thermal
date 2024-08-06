@@ -55,5 +55,5 @@ def thermal_dict_to_obj(thermals: list, locks: list, projection: CRS):
     """
     therms = []
     for index, t in enumerate(thermals):
-        therms.append(Thermal(**t, 0, projection, locks[index]))
+        therms.append(Thermal(**t, radius_m=0, projection=projection, lock=locks[index]))
     return therms

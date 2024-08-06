@@ -129,7 +129,7 @@ async def start_offboard(drone: DroneCore):
     pos = pos_to_pos_global_yaw(await drone.get_position())
     await drone.system.offboard.set_position_global(pos)
 
-    drone.logger.info("-- Starting offboard")
+    drone.logger.info("--- Starting offboard")
     try:
         await drone.system.offboard.start()
     except OffboardError as error:
@@ -185,14 +185,24 @@ async def scan_for_thermal(drone: DroneCore, points: list, thermals: list):
 
         # if the thermal is available
         for t in thermals:
-            if t.lock.acquire(block=False) and await worth_it(drone, next_waypoint, t):
+            if await worth_it(drone, next_waypoint, t):
+                if not t.lock.acquire(block=False):
+                    drone.logger.info(
+                        "-- Found worth thermal, but its not available"
+                    )
+                    continue
                 
+                drone.logger.info("-- Found worth thermal")
                 await drone.system.mission.pause_mission()
 
+                drone.logger.info("-- Following thermal")
                 await follow_thermal(drone, t)
 
+                drone.logger.info("-- Exploiting lift of thermal")
                 await ride_thermal(drone, t, next_waypoint.altitude_m)
+                drone.logger.info("-- Done")
 
+                drone.logger.info("-- Resuming mission")
                 await drone.system.mission.start_mission()
                 
                 t.lock.release()

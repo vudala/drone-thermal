@@ -1,12 +1,15 @@
 # self
 from drone_core import DroneCore
+import thermal
+from thermal import Thermal
 
 # 3rd party
 import asyncio
 from mavsdk.mission import (MissionItem, MissionPlan)
 from mavsdk.telemetry import Position
 from mavsdk.offboard import OffboardError, PositionNedYaw, PositionGlobalYaw
-from pyproj import CRS, Transformer
+from pyproj import CRS
+
 
 # standard
 import utils
@@ -20,22 +23,6 @@ MIN_WORTH_ALTITUDE_M = 20
 MAX_WORTH_DISTANCE_M = 70
 
 
-class Thermal():
-    """
-    Class responsible for encapsulating the information of a thermal
-    """
-    def __init__(self, x, y, force, radius, projection):
-        self.x = x
-        self.y = y
-        lat, lon = xy_to_global(x, y, projection)
-        self.global_position = Position(
-            lat, lon, 0, 0
-        )
-        self.force = force
-        self.radius = radius
-        self.available = True
-
-
 class Waypoint():
     """
     Class responsible for encapsulating the information of a waypoint
@@ -44,7 +31,7 @@ class Waypoint():
         self.x = x
         self.y = y
         self.altitude_m = altitude_m
-        lat, lon = xy_to_global(x, y, projection)
+        lat, lon = utils.xy_to_global(x, y, projection)
         self.global_position = Position(
             lat, lon, altitude_m, 0
         )
@@ -66,20 +53,6 @@ def pos_to_pos_global_yaw(pos: Position):
         pos.relative_altitude_m,
         0, PositionGlobalYaw.AltitudeType.REL_HOME
     )
-
-
-# Define the WGS84 geographic coordinate system (latitude, longitude)
-wgs84 = CRS.from_epsg(4326)  # EPSG code for WGS84
-def xy_to_global(x_local: float, y_local: float, projection):
-    # Create a transformer object
-    transformer = Transformer.from_crs(projection, wgs84)
-    return transformer.transform(x_local, y_local)
-
-
-def global_to_xy(latitude: float, longitude: float, projection):
-    # Create a transformer object (switched order for reverse conversion)
-    transformer = Transformer.from_crs(wgs84, projection)
-    return transformer.transform(longitude, latitude)
 
 
 async def get_next_waypoint(drone: DroneCore, points: list):
@@ -210,21 +183,19 @@ async def scan_for_thermal(drone: DroneCore, points: list, thermals: list):
     while True:
         next_waypoint = await get_next_waypoint(drone, points)
 
+        # if the thermal is available
         for t in thermals:
-            if t.available and await worth_it(drone, next_waypoint, t):
-                t.available = False
+            if t.lock.acquire(block=False) and await worth_it(drone, next_waypoint, t):
                 
                 await drone.system.mission.pause_mission()
 
                 await follow_thermal(drone, t)
 
-                # # SET NAV_LOITER_RAD
-                # await drone.system.param.set_param_float("NAV_LOITER_RAD", float(40.0))
-
                 await ride_thermal(drone, t, next_waypoint.altitude_m)
 
                 await drone.system.mission.start_mission()
-                t.available = True
+                
+                t.lock.release()
 
         await asyncio.sleep(0.1)
 
@@ -285,7 +256,10 @@ async def upload_mission(drone: DroneCore, waypoints: list):
     await drone.system.mission.upload_mission(mission_plan)
 
 
-async def run(drone: DroneCore, waypoints: list, thermals: list):
+async def run(
+        drone: DroneCore, waypoints: list,
+        thermals: list, thermal_locks: list
+    ):
     """
     Makes the target drone execute a given mission
     - drone: DroneCore
@@ -293,7 +267,9 @@ async def run(drone: DroneCore, waypoints: list, thermals: list):
     - waypoints: list
         - List of the waypoints of the mission
     - thermals: list
-        - List of thermals present in the environment
+        - List of thermals present in the environment\
+    - thermal_locks: list
+        - Locks for each thermal
     """
 
     pos = await drone.get_position()
@@ -321,8 +297,6 @@ async def run(drone: DroneCore, waypoints: list, thermals: list):
     drone.logger.info("-- Starting mission")
     await drone.system.mission.start_mission()
 
-    therms = []
-    for t in thermals:
-        therms.append(Thermal(t["x"], t["y"], t["force"], 0, projection))
+    therms = thermal.thermal_dict_to_obj(thermals, thermal_locks, projection)
     
     await scan_for_thermal(drone, points, therms)

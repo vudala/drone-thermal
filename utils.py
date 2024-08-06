@@ -5,6 +5,7 @@ import time
 
 # 3rd party
 from mavsdk.telemetry import Position, VelocityNed
+from pyproj import CRS, Transformer
 
 
 def obj_to_bytearray(obj: object):
@@ -123,3 +124,18 @@ def ground_speed_ms(vel: VelocityNed):
     return math.sqrt(
         math.pow(vel.north_m_s, 2.0) + math.pow(vel.east_m_s, 2.0)
     )
+
+
+# Define the WGS84 geographic coordinate system (latitude, longitude)
+wgs84 = CRS.from_epsg(4326)  # EPSG code for WGS84
+
+def xy_to_global(x_local: float, y_local: float, projection):
+    # Create a transformer object
+    transformer = Transformer.from_crs(projection, wgs84)
+    return transformer.transform(x_local, y_local)
+
+
+def global_to_xy(latitude: float, longitude: float, projection):
+    # Create a transformer object (switched order for reverse conversion)
+    transformer = Transformer.from_crs(wgs84, projection)
+    return transformer.transform(longitude, latitude)

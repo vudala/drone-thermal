@@ -102,16 +102,9 @@ async def refresher(drone: DroneCore):
     await group
 
 
-async def proceed():
-    """
-    Await for some logic allowing the drone to proceed with its flight
-    """
-    while True:
-        await asyncio.sleep(1)
-
-
 async def start_coroutines(
-        drone: DroneCore, waypoints: list, thermals: list, total: int
+        drone: DroneCore, waypoints: list, thermals: list, thermal_locks: list,
+        total: int
     ):
     """
     Setup and kickstart all the coroutines of the drone
@@ -137,7 +130,7 @@ async def start_coroutines(
     coros.append(refresher(drone))
 
     # the mission
-    coros.append(mission.run(drone, waypoints, thermals))
+    coros.append(mission.run(drone, waypoints, thermals, thermal_locks))
 
     # create tasks for all coroutines
     group = asyncio.gather(*coros)
@@ -148,7 +141,7 @@ async def start_coroutines(
 
 
 async def execute_core(
-        name: str, waypoints: list, thermals: list,
+        name: str, waypoints: list, thermals: list, thermal_locks: list,
         inst: int, total: int,
         barrier: Barrier,
         logger_path: str
@@ -179,11 +172,11 @@ async def execute_core(
 
     dro.logger.info('All drones synced')
     dro.logger.info('Starting the coroutines')
-    await start_coroutines(dro, waypoints, thermals, total)
+    await start_coroutines(dro, waypoints, thermals, thermal_locks, total)
 
 
 def execute(
-        name: str, waypoints: list, thermals: list,
+        name: str, waypoints: list, thermals: list, thermal_locks: list,
         inst: int, total: int,
         barrier: Barrier,
         logger_path: str):
@@ -196,8 +189,10 @@ def execute(
         - Name of the drone
     - waypoints: list
         - List of waypoints to be followed during mission
-    - thermals: thermals
+    - thermals: list
         - Thermals of the environment
+    - thermal_locks: list
+        - Locks for each thermal
     - inst: int
         - Number of the drone's instance
     - total: int
@@ -214,6 +209,7 @@ def execute(
             name,
             waypoints,
             thermals,
+            thermal_locks,
             inst,
             total,
             barrier,

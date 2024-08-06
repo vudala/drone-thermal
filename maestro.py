@@ -2,12 +2,11 @@
 import os
 import argparse
 import json
-from multiprocessing import Process, Barrier
+from multiprocessing import Process, Barrier, Lock
 
 # self
 from logger import Logger
 import tasks
-
 
 def root_path():
     """
@@ -73,6 +72,11 @@ def main(conf_path: str):
     barrier = Barrier(parties=total_drones)
 
     procs = []
+
+    thermal_locks = []
+    thermals = config["thermals"]
+    for t in thermals:
+        thermal_locks.append(Lock())
     
     for inst, drone in enumerate(config["drones"]):
         p = Process(
@@ -80,7 +84,8 @@ def main(conf_path: str):
             args=[
                 drone["name"],
                 drone["mission_waypoints"],
-                config["thermals"],
+                thermals,
+                thermal_locks,
                 inst,
                 total_drones,
                 barrier,

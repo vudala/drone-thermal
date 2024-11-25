@@ -7,7 +7,7 @@ from thermal import Thermal
 import asyncio
 from mavsdk.mission import (MissionItem, MissionPlan)
 from mavsdk.telemetry import Position
-from mavsdk.offboard import OffboardError, PositionNedYaw, PositionGlobalYaw
+from mavsdk.offboard import OffboardError, PositionGlobalYaw
 from pyproj import CRS
 
 
@@ -15,7 +15,11 @@ from pyproj import CRS
 import utils
 from typing import Optional
 
+# Acceptance radius to consider a point reached
 ACCEPTANCE_RADIUS_M = 10
+
+# Speed that the drone should fly while exploiting a thermal
+EXPLOITING_SPEED=10
 
 # Minimum altitude to gain from a thermal
 MIN_WORTH_ALTITUDE_M = 20
@@ -27,15 +31,16 @@ class Waypoint():
     """
     Class responsible for encapsulating the information of a waypoint
     """
-    def __init__(self, x, y, altitude_m, speed_ms, projection):
-        self.x = x
-        self.y = y
-        self.altitude_m = altitude_m
+    def __init__(self, x: float, y: float, altitude_m: float, speed_ms: float, projection):
+        self.x: float = x
+        self.y: float = y
+        self.altitude_m: float = altitude_m
+        self.speed_ms: float  = speed_ms
+
         lat, lon = utils.xy_to_global(x, y, projection)
         self.global_position = Position(
             lat, lon, altitude_m, 0
         )
-        self.speed_ms = speed_ms
 
 
 def pos_to_pos_global_yaw(pos: Position):
@@ -114,7 +119,7 @@ async def reach_position(drone: DroneCore, target: Position):
     while utils.distance_cm(pos, target) > ACCEPTANCE_RADIUS_M * 100:
         await asyncio.sleep(0.1)
         pos = await drone.get_position()
-
+    
 
 async def start_offboard(drone: DroneCore):
     """
@@ -158,7 +163,6 @@ async def follow_thermal(drone: DroneCore, thermal: Thermal):
 
 
 async def ride_thermal(drone: DroneCore, thermal: Thermal, height: float):
-    drone.apply_thermal_force(thermal.force)
 
     target_global_yaw = pos_to_pos_global_yaw(thermal.global_position)
     target_global_yaw.alt_m = height
@@ -166,10 +170,21 @@ async def ride_thermal(drone: DroneCore, thermal: Thermal, height: float):
 
     pos = await drone.get_position()
     diff = (height - pos.relative_altitude_m)
+
+    prev_max_speed = await drone.system.param.get_param_float('FW_AIRSPD_MAX')
+    prev_max_trim = await drone.system.param.get_param_float('FW_AIRSPD_TRIM')
+
+    await drone.system.param.set_param_float('FW_AIRSPD_TRIM', EXPLOITING_SPEED)
+    await drone.system.param.set_param_float('FW_AIRSPD_MAX', EXPLOITING_SPEED)
+
+    drone.apply_thermal_force(thermal.force)
     while diff > ACCEPTANCE_RADIUS_M:
         await asyncio.sleep(0.1)
         pos = await drone.get_position()
         diff = (height - pos.relative_altitude_m)
+
+    await drone.system.param.set_param_float('FW_AIRSPD_MAX', prev_max_speed)
+    await drone.system.param.set_param_float('FW_AIRSPD_TRIM', prev_max_trim)
 
     drone.clear_thermal_force()
 
@@ -259,6 +274,10 @@ async def upload_mission(drone: DroneCore, waypoints: list):
     """
     await drone.system.mission.set_return_to_launch_after_mission(False)
     await drone.system.param.set_param_int("MIS_TKO_LAND_REQ", int(0))
+
+    await drone.system.param.set_param_float("FW_AIRSPD_MIN", float(7.5))
+    await drone.system.param.set_param_float('FW_AIRSPD_MAX', 20.0)
+    await drone.system.param.set_param_float('FW_AIRSPD_TRIM', 15.0)
 
     mission_plan = create_mission(waypoints)
 
